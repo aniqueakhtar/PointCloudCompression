@@ -1,7 +1,7 @@
 import os
 import numpy as np
 import h5py
-
+import open3d as o3d
 
 def read_h5_geo(filedir):
     pc = h5py.File(filedir, 'r')['data'][:]
@@ -43,7 +43,7 @@ def write_ply_ascii_geo(filedir, coords):
     coords = coords.astype('int')
     for p in coords:
         f.writelines([str(p[0]), ' ', str(p[1]), ' ',str(p[2]), '\n'])
-    f.close() 
+    f.close()
 
     return
 
@@ -55,7 +55,7 @@ import MinkowskiEngine as ME
 def array2vector(array, step):
     """ravel 2D array with multi-channel to one 1D vector by sum each channel with different step.
     """
-    array, step = array.long().cpu(), step.long().cpu() 
+    array, step = array.long().cpu(), step.long().cpu()
     vector = sum([array[:,i]*(step**i) for i in range(array.shape[-1])])
 
     return vector
@@ -91,11 +91,11 @@ def istopk(data, nums, rho=1.0):
 def sort_spare_tensor(sparse_tensor):
     """ Sort points in sparse tensor according to their coordinates.
     """
-    indices_sort = np.argsort(array2vector(sparse_tensor.C.cpu(), 
+    indices_sort = np.argsort(array2vector(sparse_tensor.C.cpu(),
                                            sparse_tensor.C.cpu().max()+1))
-    sparse_tensor_sort = ME.SparseTensor(features=sparse_tensor.F[indices_sort], 
+    sparse_tensor_sort = ME.SparseTensor(features=sparse_tensor.F[indices_sort],
                                          coordinates=sparse_tensor.C[indices_sort],
-                                         tensor_stride=sparse_tensor.tensor_stride[0], 
+                                         tensor_stride=sparse_tensor.tensor_stride[0],
                                          device=sparse_tensor.device)
 
     return sparse_tensor_sort
@@ -106,7 +106,7 @@ def load_sparse_tensor(filedir, device):
     # coords, feats = ME.utils.sparse_quantize(coordinates=coords, features=feats, quantization_size=1)
     coords, feats = ME.utils.sparse_collate([coords], [feats])
     x = ME.SparseTensor(features=feats, coordinates=coords, tensor_stride=1, device=device)
-    
+
     return x
 
 def scale_sparse_tensor(x, factor):
@@ -114,5 +114,26 @@ def scale_sparse_tensor(x, factor):
     feats = torch.ones((len(coords),1)).float()
     coords, feats = ME.utils.sparse_collate([coords], [feats])
     x = ME.SparseTensor(features=feats, coordinates=coords, tensor_stride=1, device=x.device)
-    
+
+    return x
+
+
+
+# Anique Extra
+
+def read_ply_ascii_geo_Anique(filedir, ds=1):
+    pcd = o3d.io.read_point_cloud(filedir)
+    xyz = np.asarray(pcd.points)
+    data = np.unique(np.round(xyz/ds), axis=0)
+    coords = data[:,0:3].astype('int')
+
+    return coords
+
+def load_sparse_tensor_downsample(filedir, device, ds=1):
+    coords = torch.tensor(read_ply_ascii_geo_Anique(filedir, ds=ds)).int()
+    feats = torch.ones((len(coords),1)).float()
+    # coords, feats = ME.utils.sparse_quantize(coordinates=coords, features=feats, quantization_size=1)
+    coords, feats = ME.utils.sparse_collate([coords], [feats])
+    x = ME.SparseTensor(features=feats, coordinates=coords, tensor_stride=1, device=device)
+
     return x
